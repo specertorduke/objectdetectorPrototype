@@ -1,0 +1,50 @@
+.homepage-wrapper {
+    display: flex;
+    width: 100%;
+    height: 820px;
+    gap: 150px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-around;
+}
+
+/* logo */
+.homepage-wrapper > .logo {
+    width: 350px;
+}
+
+.homepage-wrapper > .logo img{
+    width: 100%;
+}
+
+/* button styles */
+.homepage-wrapper > .button a{
+    width: 100%;
+    font-weight: bold;
+    font-size: 2rem;
+    color: #000000;
+    background-color: #D9D9D9;
+    padding: 5px 10px;
+    border-radius: 30px;
+}
+
+/*animations */
+.overlay {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    background: black;
+    transition: width 1s ease, height 1s ease;
+    border-radius: 100%;
+    z-index: 1000;
+    transform: translate(-50%, -50%);
+}
+
+.overlay.expand {
+    width: 200%;
+    height: 200%;
+}
+
+

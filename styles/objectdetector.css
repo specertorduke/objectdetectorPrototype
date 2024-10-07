@@ -1,0 +1,141 @@
+.objectdetector-wrapper {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;  /* Distribute space between camera and choices */
+    height: 100%;  /* Full viewport height */
+    width: 100%;
+    box-sizing: border-box;  /* Include padding and border in the element's total width and height */
+}
+
+/* head */
+.objectdetector-wrapper > .head {
+    display: flex;
+    flex-direction: row;
+    justify-content:space-between;
+}
+.objectdetector-wrapper > .head > .logo {
+    width: 200px; 
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+.objectdetector-wrapper > .head > .logo img {
+    width: 100%; 
+}
+
+/*  pop-up menu */
+.popup-menu {
+    position: absolute;
+    top: 100px;
+    right: 20px;
+    background-color: #ffffff;
+    border-radius: 10px;
+    box-shadow: 0px 4px 20px rgba(0, 0, 0, 0.2);
+    padding: 20px;
+    width: 300px;  /* Larger width */
+    z-index: 10;
+    font-size: 1.25em;  /* Increased font size for readability */
+}
+
+.popup-choice {
+    padding: 15px;
+    margin: 10px 0;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.popup-choice p {
+    margin: 5px 0;
+    font-size: 0.9em;  /* Slightly smaller description font */
+}
+
+.popup-choice:hover {
+    background-color: #f0f0f0;
+}
+
+/* Highlighting the current mode in red */
+.popup-choice.active {
+    color: red;
+}
+
+/* Large pop-up menu button */
+.menu-button {
+    font-size: 3em;  /* Increased size */
+}
+
+.hidden {
+    display: none;  /* Ensure the menu is hidden by default */
+}
+
+
+/* camera */
+.objectdetector-wrapper > .camera {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 500px;  
+    width: 100%;  
+    background-color: rgb(255, 255, 255);
+    border: 10px solid rgb(217, 217, 217);
+    border-radius: 20px;
+    box-sizing: border-box;
+}
+
+.objectdetector-wrapper > .camera video {
+    width: 100%; 
+    height: 100%;
+    border-radius: 10px;
+    box-sizing: border-box;
+}
+
+/* Choices wrapper */
+.choices-wrapper {
+    position: relative; /* Keep choices within this container */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 150px;  /* Adjust height to fit the choices without taking up the whole page */
+    width: 100%;
+    background-color: #ffffff;
+    box-sizing: border-box;
+    margin-top: 10px; /* Add a bit of margin above the choices */
+    overflow: hidden;  /* Hide any content that extends outside the wrapper */
+}
+
+/* Each choice item */
+.choice {
+    position: absolute;  /* Allow choices to overlap */
+    left: 50%;  /* Start from the middle of the container */
+    transform: translateX(-50%) scale(0.8);  /* Keep non-selected choices smaller */
+    text-align: center;
+    padding: 20px;
+    transition: transform 0.3s, opacity 0.3s;
+    font-size: 1.5em;
+    cursor: pointer;
+    background-color: white;
+    border-radius: 10px;
+    box-shadow: 0px 4px 20px rgba(0, 0, 0, 0.2);  /* Add shadow */
+    opacity: 0.4;  /* Non-selected choices are dimmed */
+    z-index: 1;
+}
+
+/* The selected choice */
+.choice.selected {
+    transform: translateX(-50%) scale(1.2);  /* Enlarge the selected choice */
+    opacity: 1;
+    font-weight: bold;
+    z-index: 2;  /* Bring the selected choice to the front */
+    box-shadow: 0px 4px 20px rgba(0, 0, 0, 0.2);  /* Add shadow */
+}
+
+/* Adjust slightly left choices */
+.choice.left {
+    transform: translateX(-120%) scale(0.8);  /* Move left choices */
+    opacity: 0.5;
+}
+
+/* Adjust slightly right choices */
+.choice.right {
+    transform: translateX(20%) scale(0.8);  /* Move right choices */
+    opacity: 0.5;
+}

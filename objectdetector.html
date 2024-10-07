@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Object Detector</title>
+    <link rel="stylesheet" href="styles/styles.css">
+    <link rel="stylesheet" href="styles/objectdetector.css">
+
+    <script src="javascript/objectdetector.js" defer></script>
+    <script src="javascript/pop-up.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@2.1.1/dist/tesseract.min.js"></script>
+</head>
+<body>
+    <div class="objectdetector-wrapper">
+        <div class="head">
+            <div class="logo">
+                <img src="images/logo-notext.png" alt="logo">
+            </div>
+
+            <div class="popup-menu-wrapper">
+                <button id="menu-btn" class="menu-button">☰</button>
+                <div id="popup-menu" class="popup-menu hidden">
+                    <div class="popup-choice" id="popup-object-detection">
+                        <strong>Object Detection</strong>
+                        <p>Detect and describe objects in front of the camera.</p>
+                    </div>
+                    <div class="popup-choice" id="popup-text-reader">
+                        <strong>Text Reader</strong>
+                        <p>Read text from images captured by the camera.</p>
+                    </div>
+                    <div class="popup-choice" id="popup-color-detection">
+                        <strong>Color Detection</strong>
+                        <p>Identify the dominant color in the camera's view.</p>
+                    </div>
+                </div>
+            </div>            
+        </div>
+        
+        <div class="camera">
+            <video id="camera-stream" autoplay playsinline></video>
+        </div>
+
+        <div class="choices-wrapper">
+            <div class="choice selected" id="object-detection">Object Detection</div>
+            <div class="choice" id="text-reader">Text Reader</div>
+            <div class="choice" id="color-detection">Color Detection</div>
+        </div>
+    </div>
+</body>
+</html>
