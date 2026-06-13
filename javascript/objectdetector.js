@@ -660,6 +660,16 @@
         if (statusText) {
             statusText.textContent = MODE_INFO[mode].name;
         }
+        // Color the status dot per mode
+        const dot = document.querySelector('.status-dot');
+        if (dot) {
+            const dotColors = {
+                'object-detection': '#00b4d8',
+                'text-reader': '#7c4dff',
+                'color-detection': '#ff9800'
+            };
+            dot.style.background = dotColors[mode] || '#00b4d8';
+        }
     }
 
     function updateAriaStates() {
