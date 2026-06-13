@@ -3,51 +3,129 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Object Detector</title>
+    <meta name="description" content="Insightful Object Detector — Detect objects, read text, and identify colors using your camera with voice output for accessibility.">
+    <meta name="theme-color" content="#0a0a12">
+    <title>Insightful — Detector</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
+
     <link rel="stylesheet" href="styles/styles.css">
     <link rel="stylesheet" href="styles/objectdetector.css">
+    <link rel="stylesheet" href="styles/media-queries.css">
 
-    <script src="javascript/objectdetector.js" defer></script>
-    <script src="javascript/pop-up.js" defer></script>
+    <script src="https://kit.fontawesome.com/122356b1e5.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
-    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@2.1.1/dist/tesseract.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <script src="javascript/objectdetector.js" defer></script>
 </head>
 <body>
-    <div class="objectdetector-wrapper">
-        <div class="head">
+    <!-- Skip link -->
+    <a href="#camera-stream" class="skip-link" id="skip-link">Skip to Camera</a>
+
+    <!-- ARIA live regions for announcements -->
+    <div id="live-announcer" class="live-region" aria-live="assertive" aria-atomic="true" role="status"></div>
+    <div id="live-results" class="live-region" aria-live="polite" aria-atomic="true" role="log"></div>
+
+    <div class="objectdetector-wrapper" role="main" aria-label="Object detection interface">
+
+        <!-- Header -->
+        <header class="head" role="banner">
             <div class="logo">
-                <img src="images/logo-notext.png" alt="logo">
+                <a href="index.html" aria-label="Go back to home screen">
+                    <img src="images/logo-notext.png" alt="Insightful logo">
+                </a>
             </div>
 
-            <div class="popup-menu-wrapper">
-                <button id="menu-btn" class="menu-button">☰</button>
-                <div id="popup-menu" class="popup-menu hidden">
-                    <div class="popup-choice" id="popup-object-detection">
+            <!-- Status Badge -->
+            <div class="status-badge" id="status-badge" aria-live="polite" aria-label="Current mode indicator">
+                <span class="status-dot" aria-hidden="true"></span>
+                <span id="status-text">Object Detection</span>
+            </div>
+
+            <!-- Menu -->
+            <nav class="popup-menu-wrapper" aria-label="Mode selection menu">
+                <button id="menu-btn" class="menu-button"
+                        aria-label="Open mode selection menu"
+                        aria-expanded="false"
+                        aria-haspopup="true"
+                        aria-controls="popup-menu">
+                    <i class="fa-solid fa-bars" aria-hidden="true"></i>
+                </button>
+                <div id="popup-menu" class="popup-menu hidden" role="menu" aria-label="Detection modes">
+                    <div class="popup-choice active" id="popup-object-detection"
+                         role="menuitem" tabindex="0"
+                         aria-label="Object Detection — Detect and describe objects in front of the camera">
                         <strong>Object Detection</strong>
                         <p>Detect and describe objects in front of the camera.</p>
                     </div>
-                    <div class="popup-choice" id="popup-text-reader">
+                    <div class="popup-choice" id="popup-text-reader"
+                         role="menuitem" tabindex="0"
+                         aria-label="Text Reader — Read text from images captured by the camera">
                         <strong>Text Reader</strong>
                         <p>Read text from images captured by the camera.</p>
                     </div>
-                    <div class="popup-choice" id="popup-color-detection">
+                    <div class="popup-choice" id="popup-color-detection"
+                         role="menuitem" tabindex="0"
+                         aria-label="Color Detection — Identify the dominant color in the camera's view">
                         <strong>Color Detection</strong>
                         <p>Identify the dominant color in the camera's view.</p>
                     </div>
                 </div>
-            </div>            
-        </div>
-        
-        <div class="camera">
-            <video id="camera-stream" autoplay playsinline></video>
+            </nav>
+        </header>
+
+        <!-- Camera Viewport -->
+        <div class="camera" role="img" aria-label="Live camera feed — tap screen to analyze">
+            <video id="camera-stream" autoplay playsinline aria-label="Camera video stream"></video>
+
+            <!-- Scanning animation overlay -->
+            <div class="camera-scanning" id="camera-scanning" aria-hidden="true"></div>
+
+            <!-- Loading indicator -->
+            <div class="loading-indicator" id="loading-indicator" aria-hidden="true">
+                <div class="loading-spinner"></div>
+                <span class="loading-text">Analyzing...</span>
+            </div>
         </div>
 
-        <div class="choices-wrapper">
-            <div class="choice selected" id="object-detection">Object Detection</div>
-            <div class="choice" id="text-reader">Text Reader</div>
-            <div class="choice" id="color-detection">Color Detection</div>
-        </div>
+        <!-- Mode Selector -->
+        <nav class="choices-wrapper" role="tablist" aria-label="Detection mode selector — swipe left or right to switch modes">
+            <div class="choice selected" id="object-detection"
+                 role="tab" tabindex="0"
+                 aria-selected="true"
+                 aria-label="Object Detection mode — currently selected">
+                Object Detection
+            </div>
+            <div class="choice" id="text-reader"
+                 role="tab" tabindex="0"
+                 aria-selected="false"
+                 aria-label="Text Reader mode">
+                Text Reader
+            </div>
+            <div class="choice" id="color-detection"
+                 role="tab" tabindex="0"
+                 aria-selected="false"
+                 aria-label="Color Detection mode">
+                Color Detection
+            </div>
+            <span class="swipe-hint" aria-hidden="true">
+                <i class="fa-solid fa-chevron-left"></i>
+                swipe to switch
+                <i class="fa-solid fa-chevron-right"></i>
+            </span>
+        </nav>
     </div>
+
+    <!-- Result Toast (for visual display of spoken results) -->
+    <div class="result-toast" id="result-toast" role="alert" aria-live="assertive" aria-atomic="true">
+        <span class="toast-icon" aria-hidden="true">✨</span>
+        <span id="result-toast-text"></span>
+    </div>
+
+    <!-- Off-screen canvas for OCR -->
+    <canvas id="ocr-canvas" style="display:none;" aria-hidden="true"></canvas>
 </body>
 </html>

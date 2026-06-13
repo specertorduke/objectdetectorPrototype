@@ -3,7 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Home</title>
+    <meta name="description" content="Insightful — An AI-powered accessibility app that helps blind and visually impaired users detect objects, read text, and identify colors through voice output.">
+    <meta name="theme-color" content="#0a0a12">
+    <title>Insightful — Ready to Lend You Eyes</title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -12,22 +14,34 @@
     <script src="javascript/intro.js" defer></script>
     <script src="https://kit.fontawesome.com/122356b1e5.js" crossorigin="anonymous"></script>
 
-    <link rel="stylesheet" href="styles/introstyle.css">
     <link rel="stylesheet" href="styles/styles.css">
+    <link rel="stylesheet" href="styles/introstyle.css">
     <link rel="stylesheet" href="styles/media-queries.css">
-
 </head>
 <body>
-    <div class="homepage-wrapper">
-        <div class="logo">
-            <img src="images/logo.png" alt="logo">
-        </div>
-        
-        <div class="button">
-            <a>START <i class="fa-solid fa-arrow-right"></i> </a>
-        </div>
-    </div>
+    <!-- Skip link for screen readers -->
+    <a href="#start-btn" class="skip-link" id="skip-link">Skip to Start</a>
 
-    <div class="overlay" id="overlay"></div>
+    <!-- ARIA live region for announcements -->
+    <div id="live-announcer" class="live-region" aria-live="assertive" aria-atomic="true" role="status"></div>
+
+    <main class="homepage-wrapper" role="main" aria-label="Welcome screen">
+        <div class="logo" role="img" aria-label="Insightful logo — ready to lend you eyes">
+            <img src="images/logo.png" alt="Insightful — ready to lend you eyes">
+        </div>
+
+        <div class="button">
+            <a href="#" role="button" id="start-btn" tabindex="0"
+               aria-label="Start the Insightful app. Tap anywhere or press Enter to begin.">
+                START <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+            </a>
+        </div>
+
+        <p class="instruction-text" aria-hidden="true">
+            Tap anywhere to begin
+        </p>
+    </main>
+
+    <div class="overlay" id="overlay" aria-hidden="true"></div>
 </body>
 </html>

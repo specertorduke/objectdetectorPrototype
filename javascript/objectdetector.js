@@ -1,509 +1,822 @@
-let detectedObjects = [];
-let usingFrontCamera = false;  // Track whether front or back camera is being used
-let stream = null;
-let lastTapTime = 0;
-const doubleTapTimeout = 300;  // Set a window of 300ms for double tap
-let mode = "object-detection";  // Default mode (start with object detection)
-setTimeout(function() {
-    readObjectAloud("Object detection mode. Press once to trigger the function. Click the buttons, swipe, or use the pop-up menu to navigate.");
-}, 1400);
-let isActionTriggered = false;  // Ensure action is only triggered on single tap
-let isObjectDetectionRunning = false;  // New flag to track object detection
+// ============================================
+// INSIGHTFUL — Object Detector Engine
+// Real OCR, cached model, accessibility-first
+// ============================================
 
-// Function to start the camera
-function startCamera(facingMode) {
-    if (stream) {
-        stream.getTracks().forEach(track => track.stop());
+(function () {
+    'use strict';
+
+    // ---- Configuration ----
+    const CONFIG = {
+        SPEECH_RATE: 0.9,
+        DOUBLE_TAP_TIMEOUT: 300,
+        MIN_SWIPE_DISTANCE: 40,
+        ACTION_COOLDOWN: 1200,
+        CONFIDENCE_THRESHOLD: 0.6,
+        TOAST_DURATION: 5000,
+        LONG_PRESS_DURATION: 800,
+    };
+
+    // ---- State ----
+    let mode = 'object-detection';
+    let currentIndex = 0;
+    let stream = null;
+    let usingFrontCamera = false;
+    let lastTapTime = 0;
+    let isActionTriggered = false;
+    let isObjectDetectionRunning = false;
+    let isMenuOpen = false;
+    let cachedModel = null;
+    let touchstartX = 0;
+    let touchendX = 0;
+    let longPressTimer = null;
+
+    // ---- DOM References ----
+    const choices = document.querySelectorAll('.choice');
+    const video = document.getElementById('camera-stream');
+    const menuBtn = document.getElementById('menu-btn');
+    const popupMenu = document.getElementById('popup-menu');
+    const statusText = document.getElementById('status-text');
+    const scanLine = document.getElementById('camera-scanning');
+    const loadingIndicator = document.getElementById('loading-indicator');
+    const resultToast = document.getElementById('result-toast');
+    const resultToastText = document.getElementById('result-toast-text');
+    const liveAnnouncer = document.getElementById('live-announcer');
+    const liveResults = document.getElementById('live-results');
+
+    // ---- Mode Descriptions (for long-press help) ----
+    const MODE_INFO = {
+        'object-detection': {
+            name: 'Object Detection',
+            description: 'Detects and names objects in front of the camera. Tap to scan, double-tap to flip camera.',
+            icon: '🔍'
+        },
+        'text-reader': {
+            name: 'Text Reader',
+            description: 'Reads printed text from the camera view. Hold your device steady over text and tap to scan.',
+            icon: '📖'
+        },
+        'color-detection': {
+            name: 'Color Detection',
+            description: 'Identifies the dominant color the camera sees. Point at any surface and tap to detect.',
+            icon: '🎨'
+        }
+    };
+
+    // ============================================
+    // AUDIO CUE SYSTEM (Web Audio API — no files)
+    // ============================================
+    let audioCtx = null;
+
+    function getAudioCtx() {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        return audioCtx;
     }
 
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: facingMode } })
-        .then((mediaStream) => {
-            stream = mediaStream;
-            document.getElementById('camera-stream').srcObject = mediaStream;
+    function playTone(frequency, duration, type = 'sine', volume = 0.15) {
+        try {
+            const ctx = getAudioCtx();
+            const oscillator = ctx.createOscillator();
+            const gain = ctx.createGain();
+            oscillator.type = type;
+            oscillator.frequency.setValueAtTime(frequency, ctx.currentTime);
+            gain.gain.setValueAtTime(volume, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+            oscillator.connect(gain);
+            gain.connect(ctx.destination);
+            oscillator.start(ctx.currentTime);
+            oscillator.stop(ctx.currentTime + duration);
+        } catch (e) {
+            // Audio not available — silent fallback
+        }
+    }
+
+    function playModeSwitch() {
+        playTone(600, 0.12, 'sine', 0.1);
+        setTimeout(() => playTone(800, 0.12, 'sine', 0.1), 80);
+    }
+
+    function playScanStart() {
+        playTone(400, 0.15, 'triangle', 0.1);
+    }
+
+    function playResultReady() {
+        playTone(523, 0.1, 'sine', 0.12);
+        setTimeout(() => playTone(659, 0.1, 'sine', 0.12), 100);
+        setTimeout(() => playTone(784, 0.15, 'sine', 0.12), 200);
+    }
+
+    function playError() {
+        playTone(300, 0.2, 'sawtooth', 0.08);
+    }
+
+    // ============================================
+    // HAPTIC FEEDBACK
+    // ============================================
+    function vibrate(pattern) {
+        if (navigator.vibrate) {
+            navigator.vibrate(pattern);
+        }
+    }
+
+    // ============================================
+    // SPEECH SYNTHESIS
+    // ============================================
+    function speak(text, interrupt = true) {
+        if (interrupt) {
+            window.speechSynthesis.cancel();
+        }
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = CONFIG.SPEECH_RATE;
+        utterance.pitch = 1;
+        utterance.volume = 1;
+        window.speechSynthesis.speak(utterance);
+    }
+
+    function stopSpeech() {
+        window.speechSynthesis.cancel();
+    }
+
+    // ---- ARIA Live Region Announcements ----
+    function announceAssertive(text) {
+        if (liveAnnouncer) {
+            liveAnnouncer.textContent = '';
+            setTimeout(() => { liveAnnouncer.textContent = text; }, 50);
+        }
+    }
+
+    function announcePolite(text) {
+        if (liveResults) {
+            liveResults.textContent = '';
+            setTimeout(() => { liveResults.textContent = text; }, 50);
+        }
+    }
+
+    // ============================================
+    // RESULT TOAST (Visual + Audible)
+    // ============================================
+    let toastTimeout = null;
+
+    function showToast(text, icon) {
+        if (!resultToast || !resultToastText) return;
+
+        clearTimeout(toastTimeout);
+        const toastIcon = resultToast.querySelector('.toast-icon');
+        if (toastIcon) toastIcon.textContent = icon || '✨';
+        resultToastText.textContent = text;
+        resultToast.classList.add('visible');
+
+        toastTimeout = setTimeout(() => {
+            resultToast.classList.remove('visible');
+        }, CONFIG.TOAST_DURATION);
+    }
+
+    function hideToast() {
+        if (resultToast) resultToast.classList.remove('visible');
+        clearTimeout(toastTimeout);
+    }
+
+    // ============================================
+    // LOADING STATE
+    // ============================================
+    function showLoading() {
+        if (scanLine) scanLine.classList.add('active');
+        if (loadingIndicator) loadingIndicator.classList.add('active');
+    }
+
+    function hideLoading() {
+        if (scanLine) scanLine.classList.remove('active');
+        if (loadingIndicator) loadingIndicator.classList.remove('active');
+    }
+
+    // ============================================
+    // CAMERA
+    // ============================================
+    function startCamera(facingMode) {
+        if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+        }
+
+        navigator.mediaDevices.getUserMedia({
+            video: { facingMode: facingMode }
         })
-        .catch((error) => {
-            console.error('Error accessing the camera:', error);
-        });
-}
-
-// Toggle between front and back cameras
-function toggleCamera() {
-    usingFrontCamera = !usingFrontCamera;
-    const facingMode = usingFrontCamera ? 'user' : 'environment';
-    startCamera(facingMode);
-}
-
-// Object detection logic
-function objectDetection() {
-    // Check if the mode is still 'object-detection' and detection is not already running
-    if (mode !== "object-detection" || isObjectDetectionRunning) return;
-
-    isObjectDetectionRunning = true;  // Set flag to indicate detection is running
-
-    cocoSsd.load().then(model => {
-        model.detect(document.getElementById('camera-stream')).then(predictions => {
-            detectedObjects = predictions;
-            
-            if (detectedObjects.length > 0) {
-                const objectName = detectedObjects[0].class;
-                readObjectAloud(objectName);
-            } else {
-                readObjectAloud("No object detected");
-            }
-            isObjectDetectionRunning = false;  // Reset flag after detection completes
-        }).catch(() => {
-            isObjectDetectionRunning = false;  // Reset flag if an error occurs
-        });
-    });
-}
-
-let txtcount = 0;
-// Text reading logic using OCR
-function textReader() {
-    // Check if the mode is still 'text-reader' before proceeding
-    if (mode !== "text-reader") return;
-
-    if(txtcount == 0){
-        readObjectAloud("Birth Date, 06 20 2005. Blood Type O. This card is non-transferable and only for the semester he/she officially enrolled. It must be worn within the premises of the school at all times. In case if loss, finder is requested to surrended this card to the Office of Student Affairs, this University. Carmencita E. Vidamo University Registrar. In case of emergency, Ermalyn Roda Duhaylungsod, Purok 12, IKP Village, Brngy. Ulaa, Tugbok District, Davao City, 09776973832.");
-    } else if(txtcount == 1) {
-        readObjectAloud("Student. Zander R. Duhaylungsod. College of Computing Education. 1st Sem 2024-2025");
-    } else if(txtcount > 1){
-        const videoElement = document.getElementById('camera-stream');
-        const canvas = document.createElement('canvas');
-        const context = canvas.getContext('2d');
-        canvas.width = videoElement.videoWidth;
-        canvas.height = videoElement.videoHeight;
-        
-        // Draw the current video frame onto the canvas
-        context.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
-    
-        // Debug: Create an image from the canvas for manual inspection (optional)
-        const imgDataUrl = canvas.toDataURL('image/png');
-        console.log("Captured image from canvas:", imgDataUrl);  // You can open this URL in a browser to inspect
-    
-        // Perform OCR on the canvas image
-        Tesseract.recognize(canvas, 'eng')
-            .then(result => {
-                console.log("Raw OCR result:", result);  // Log raw OCR result for debugging
-    
-                const detectedText = result.data.text.trim();
-                
-                // Filter and clean up the detected text
-                const cleanedText = cleanText(detectedText);
-    
-                if (cleanedText) {
-                    console.log("Cleaned text:", cleanedText);  // Log cleaned text for debugging
-                    readObjectAloud(`Detected text: ${cleanedText}`);
-                } else {
-                    console.log("No valid text detected");  // Log if no valid text is detected
-                    readObjectAloud("No valid text detected");
-                }
+            .then((mediaStream) => {
+                stream = mediaStream;
+                video.srcObject = mediaStream;
             })
-            .catch(err => {
-                console.error('Error with OCR:', err);
-                readObjectAloud("Error reading text");
+            .catch((error) => {
+                console.error('Camera error:', error);
+                speak("Unable to access the camera. Please grant camera permission.");
+                announceAssertive("Camera access denied. Please enable camera permissions.");
             });
     }
 
-    txtcount++;
-}
-
-
-// Clean and filter the detected text to avoid random characters
-function cleanText(text) {
-    // Remove any random symbols or unwanted characters
-    const cleanedText = text.replace(/[^a-zA-Z0-9\s,.!?]/g, '').trim();
-    
-    // Check if the cleaned text has a minimum length to be considered valid
-    if (cleanedText.length > 2) {
-        return cleanedText;
-    }
-    
-    return "";  // Return an empty string if the text is too short
-}
-
-
-// Color detection logic
-function colorDetection() {
-    // Check if the mode is still 'color-detection' before proceeding
-    if (mode !== "color-detection") return;
-
-    const videoElement = document.getElementById('camera-stream');
-    const canvas = document.createElement('canvas');
-    const context = canvas.getContext('2d');
-    canvas.width = videoElement.videoWidth;
-    canvas.height = videoElement.videoHeight;
-    context.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
-
-    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-    const colorName = detectDominantColor(imageData.data);
-    readObjectAloud(`Dominant color is ${colorName}`);
-}
-
-// Detect dominant color and convert RGB to color name
-function detectDominantColor(data) {
-    let r = 0, g = 0, b = 0;
-    for (let i = 0; i < data.length; i += 4) {
-        r += data[i];
-        g += data[i + 1];
-        b += data[i + 2];
-    }
-    r = Math.floor(r / (data.length / 4));
-    g = Math.floor(g / (data.length / 4));
-    b = Math.floor(b / (data.length / 4));
-
-    return rgbToColorName(r, g, b);
-}
-
-// Convert RGB to HSL
-function rgbToHsl(r, g, b) {
-    r /= 255;
-    g /= 255;
-    b /= 255;
-    
-    const max = Math.max(r, g, b), min = Math.min(r, g, b);
-    let h, s, l = (max + min) / 2;
-    
-    if (max === min) {
-        h = s = 0; // achromatic
-    } else {
-        const d = max - min;
-        s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-        switch (max) {
-            case r: h = (g - b) / d + (g < b ? 6 : 0); break;
-            case g: h = (b - r) / d + 2; break;
-            case b: h = (r - g) / d + 4; break;
-        }
-        h /= 6;
-    }
-    return [Math.round(h * 360), Math.round(s * 100), Math.round(l * 100)];
-}
-
-// Improved color detection logic using both RGB and HSL
-function rgbToColorName(r, g, b) {
-    const [h, s, l] = rgbToHsl(r, g, b);
-
-    if (s < 15 && l > 85) return 'White';  // Low saturation and high lightness
-    if (s < 20 && l < 15) return 'Black';  // Low saturation and low lightness
-    if (s < 25 && l >= 15 && l <= 85) return 'Gray';  // Low saturation and mid-range lightness
-    
-    // Define color ranges using both HSL and RGB
-    if (r > 200 && g < 100 && b < 100 && h < 15) return 'Red';
-    if (h >= 15 && h <= 45 && l >= 40) return 'Orange';
-    if (h > 45 && h <= 65 && s > 50) return 'Yellow';
-    if (h > 65 && h <= 150 && g > r && g > b) return 'Green';
-    if (h > 150 && h <= 240 && b > r && b > g) return 'Blue';
-    if (h > 240 && h <= 280 && r > g && b > g) return 'Purple';
-    if (h > 280 && h <= 330 && r > b && r > g) return 'Pink';
-    
-    if (r > 150 && g > 150 && b < 100) return 'Light Yellow';
-    if (r < 100 && g > 150 && b < 100) return 'Light Green';
-    if (r < 100 && g < 100 && b > 150) return 'Light Blue';
-
-    return 'Unknown Color';  // Default if no color match is found
-}
-
-
-// Function to read out text via speech synthesis
-function readObjectAloud(text) {
-    const speech = new SpeechSynthesisUtterance(text);
-    window.speechSynthesis.speak(speech);
-}
-
-// Stop speech immediately
-function stopSpeech() {
-    window.speechSynthesis.cancel();
-}
-
-// Handle screen taps or clicks to voice out the detected object or switch cameras
-document.body.addEventListener('click', function(event){
-    if (isMenuOpen) return;  // Do nothing if the menu is open or the menu button was clicked
-    event.stopPropagation();
-    const currentTime = new Date().getTime();
-    const tapDuration = currentTime - lastTapTime;
-
-    if (tapDuration < doubleTapTimeout && tapDuration > 0) {
-        toggleCamera();  // Double-tap toggles camera
-    } else {
-        stopSpeech();  // Stop any ongoing speech when action is triggered
-
-        // Single tap triggers the selected mode action
-        if (!isActionTriggered) {
-            isActionTriggered = true;
-
-            stopSpeech();  // Stop any ongoing speech when action is triggered
-            readObjectAloud("Analyzing, please wait.")
-            // Trigger the appropriate action based on the mode
-            if (mode === "object-detection") {
-                objectDetection();
-            } else if (mode === "text-reader") {
-                textReader();
-            } else if (mode === "color-detection") {
-                colorDetection();
-            }
-
-            setTimeout(() => { isActionTriggered = false; }, 1000);  // Add delay between taps
-        }
+    function toggleCamera() {
+        usingFrontCamera = !usingFrontCamera;
+        const facingMode = usingFrontCamera ? 'user' : 'environment';
+        startCamera(facingMode);
+        speak(usingFrontCamera ? "Front camera" : "Back camera");
+        vibrate(50);
     }
 
-    lastTapTime = currentTime;
-});
-
-
-// Get all choices and set the current index
-let choices = document.querySelectorAll('.choice');
-let currentIndex = 0;  // Start with the first choice
-
-// Update the appearance and positioning of the choices
-function updateSelection(index) {
-    choices.forEach((choice, i) => {
-        choice.classList.remove('left', 'right', 'selected');  // Remove previous classes
-
-        if (i === index) {
-            choice.classList.add('selected');  // Center the selected choice
-        } else if (i < index) {
-            choice.classList.add('left');  // Slightly move left of the current
-        } else if (i > index) {
-            choice.classList.add('right');  // Slightly move right of the current
-        }
-    });
-}
-
-document.addEventListener("DOMContentLoaded", function() {
-    // Default fade out & selection
-    updateSelection(0);
-    fadeOutChoice(2);
-});
-
-
-// Handle choice selection by click
-choices.forEach((choice, index) => {
-    choice.addEventListener('click', function(event) {
-        event.stopPropagation();
-        stopSpeech();  // Stop ongoing speech
-
-        // Update the mode based on the clicked choice
-        if (index === 0) {
-            mode = "object-detection";
-            updatePopupMenu()
-            fadeOutChoice(2);  // Fade out the color detection box (index 2)
-        } else if (index === 1) {
-            mode = "text-reader";
-            updatePopupMenu()
-            fadeOutOtherChoices(1);
-        } else if (index === 2) {
-            mode = "color-detection";
-            updatePopupMenu()
-            fadeOutChoice(0);  // Fade out the color detection box (index 2)
-        }
-
-        currentIndex = index;  // Update the current index
-        updateSelection(currentIndex);  // Re-center the selection
-
-        stopSpeech();  // Stop any ongoing speech when switching modes
-
-        if (currentIndex === 0) {
-            readObjectAloud("Object detection mode");
-        } else if (currentIndex === 1) {
-            readObjectAloud("Text reader mode");
-        } else if (currentIndex === 2) {
-            readObjectAloud("Color detection mode");
-        }
+    // ============================================
+    // MODEL CACHING (load once, reuse)
+    // ============================================
+    function loadModel() {
+        if (cachedModel) return Promise.resolve(cachedModel);
+        return cocoSsd.load().then(model => {
+            cachedModel = model;
+            return model;
         });
-});
-
-
-let touchstartX = 0;
-let touchendX = 0;
-const minSwipeDistance = 30;  // Minimum distance for a swipe
-
-document.addEventListener('touchstart', function(event) {
-    touchstartX = event.changedTouches[0].screenX;  // Start of swipe
-    console.log(touchstartX);
-});
-
-document.addEventListener('touchend', function(event) {
-    touchendX = event.changedTouches[0].screenX;  // End of swipe
-    console.log(touchendX);
-    if (Math.abs(touchendX - touchstartX) > minSwipeDistance) {
-        handleGesture();  // Handle the gesture if it's a swipe
-    }
-});
-
-
-// Handle swipe gestures
-function handleGesture() {
-    if (isMenuOpen) return;  // Do nothing if the menu is open
-    
-    if (touchendX < touchstartX) {
-        // Swipe left to move to the next choice
-        currentIndex = (currentIndex + 1) % choices.length;
     }
 
-    if (touchendX > touchstartX) {
-        // Swipe right to move to the previous choice
-        currentIndex = (currentIndex - 1 + choices.length) % choices.length;
-    }
-
-    updateSelection(currentIndex);  // Re-center the selection
-
-    // Update the mode based on the new index
-    if (currentIndex === 0) {
-        mode = "object-detection";
-        updatePopupMenu()
-        fadeOutChoice(2);  // Fade out the color detection box (index 2)
-    } else if (currentIndex === 1) {
-        mode = "text-reader";
-        updatePopupMenu()
-        fadeOutOtherChoices(1);
-    } else if (currentIndex === 2) {
-        mode = "color-detection";
-        updatePopupMenu()
-        fadeOutChoice(0);  // Fade out the color detection box (index 2)
-    }
-
-    stopSpeech();  // Stop any ongoing speech when switching modes
-
-    if (currentIndex === 0) {
-        readObjectAloud("Object detection mode");
-    } else if (currentIndex === 1) {
-        readObjectAloud("Text reader mode");
-    } else if (currentIndex === 2) {
-        readObjectAloud("Color detection mode");
-    }
-}
-
-//-----------
-
-// Ensure pop-up menu starts hidden
-document.getElementById('popup-menu').classList.add('hidden');
-
-let isMenuOpen = false;  // Track whether the menu is open
-// Update the menu button click handler to toggle the flag
-document.getElementById('menu-btn').addEventListener('click', function(event) {
-    event.stopPropagation();
-    const popupMenu = document.getElementById('popup-menu');
-    popupMenu.classList.toggle('hidden');  // Toggle visibility
-    isMenuOpen = !popupMenu.classList.contains('hidden');  // Update the flag
-});
-
-// Close menu when user clicks outside the menu
-document.addEventListener('click', (event) => {
-    const popupMenu = document.getElementById('popup-menu');
-    if (!popupMenu.contains(event.target) && !event.target.matches('#menu-btn')) {
-        popupMenu.classList.add('hidden');  // Close menu if clicked outside
-        isMenuOpen = false;  // Ensure the flag is updated
-    }
-});
-
-// Handle mode selection from the pop-up menu
-document.querySelectorAll('.popup-choice').forEach((choice, index) => {
-    choice.addEventListener('click', function(event) {
-        event.stopPropagation();
-        resetChoiceVisibility();
-        
-        // Update the mode based on user selection
-        if (index === 0) {
-            mode = "object-detection";
-            fadeOutChoice(2);
-        } else if (index === 1) {
-            mode = "text-reader";
-            fadeOutOtherChoices(1);
-        } else if (index === 2) {
-            mode = "color-detection";
-            fadeOutChoice(0);
-        }
-        
-        stopSpeech();  // Stop any ongoing speech when switching modes
-        updatePopupMenu();  // Sync with pop-up menu
-        updateSelection(index);  // Update the choices below
-        readObjectAloud(choice.textContent.trim());
-
-        document.getElementById('popup-menu').classList.add('hidden');  // Close pop-up menu
-    });
-});
-
-// Update pop-up menu to highlight the current mode
-function updatePopupMenu() {
-    document.querySelectorAll('.popup-choice').forEach(choice => {
-        choice.classList.remove('active');
+    // Pre-load model on startup
+    loadModel().then(() => {
+        console.log('COCO-SSD model cached');
+    }).catch(err => {
+        console.error('Model load error:', err);
     });
 
-    if (mode === "object-detection") {
-        document.getElementById('popup-object-detection').classList.add('active');
-    } else if (mode === "text-reader") {
-        document.getElementById('popup-text-reader').classList.add('active');
-    } else if (mode === "color-detection") {
-        document.getElementById('popup-color-detection').classList.add('active');
-    }
-}
+    // ============================================
+    // OBJECT DETECTION
+    // ============================================
+    function objectDetection() {
+        if (mode !== 'object-detection' || isObjectDetectionRunning) return;
+        isObjectDetectionRunning = true;
 
-// Update the appearance of the choices
-function updateSelection(index) {
-    choices.forEach((choice, i) => {
-        choice.classList.remove('left', 'right', 'selected');
-        if (i === index) {
-            choice.classList.add('selected');  // Highlight the current choice
-        } else if (i < index) {
-            choice.classList.add('left');  // Move previous choices to the left
-        } else if (i > index) {
-            choice.classList.add('right');  // Move future choices to the right
-        }
-    });
-}
+        showLoading();
+        playScanStart();
+        speak("Analyzing, please wait.", true);
+        vibrate(100);
 
-// Fade out a specific choice by setting its opacity to 0
-function fadeOutChoice(choiceIndex) {
-    choices.forEach((choice, index) => {
-        if (index === choiceIndex) {
-            choice.style.opacity = 0;  // Fade out the choice
-            choice.style.pointerEvents = 'none';  // Disable interaction with the faded choice
-        } else {
-            if(index===2) {
-                choice.style.opacity = 1; 
-            } else if (index==0) {
-                choice.style.opacity = 1; 
+        loadModel().then(model => {
+            return model.detect(video);
+        }).then(predictions => {
+            hideLoading();
+            isObjectDetectionRunning = false;
+
+            // Filter by confidence threshold
+            const confident = predictions.filter(p => p.score >= CONFIG.CONFIDENCE_THRESHOLD);
+
+            if (confident.length > 0) {
+                // Announce ALL detected objects
+                const names = confident.map(p => {
+                    const pct = Math.round(p.score * 100);
+                    return `${p.class} (${pct}% confidence)`;
+                });
+
+                let announcement;
+                if (confident.length === 1) {
+                    announcement = `I see ${names[0]}.`;
+                } else {
+                    const last = names.pop();
+                    announcement = `I see ${names.join(', ')}, and ${last}.`;
+                }
+
+                playResultReady();
+                vibrate([100, 80, 100]);
+                speak(announcement);
+                announcePolite(announcement);
+                showToast(announcement, '🔍');
             } else {
-                choice.style.opacity = 0.3; 
+                playError();
+                vibrate(200);
+                const msg = "No objects detected. Try pointing the camera at something.";
+                speak(msg);
+                announcePolite(msg);
+                showToast(msg, '❌');
             }
-            choice.style.pointerEvents = 'auto';  // Enable interaction
-        }
-    });
-}
+        }).catch(err => {
+            hideLoading();
+            isObjectDetectionRunning = false;
+            console.error('Detection error:', err);
+            playError();
+            const msg = "Error during detection. Please try again.";
+            speak(msg);
+            announcePolite(msg);
+        });
+    }
 
-// Fade out all choices except the currently selected one
-function fadeOutOtherChoices(selectedIndex) {
-    choices.forEach((choice, index) => {
-        if (index === selectedIndex) {
-            choice.style.opacity = 1;  // Keep the selected choice fully visible
-            choice.style.pointerEvents = 'auto';  // Allow interaction with the selected choice
+    // ============================================
+    // TEXT READER (Real OCR via Tesseract.js v5)
+    // ============================================
+    function textReader() {
+        if (mode !== 'text-reader') return;
+
+        showLoading();
+        playScanStart();
+        speak("Scanning text, please hold steady.", true);
+        vibrate(100);
+
+        const canvas = document.getElementById('ocr-canvas') || document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+
+        // Draw current frame
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        // Image preprocessing for better OCR
+        preprocessForOCR(context, canvas.width, canvas.height);
+
+        // Run Tesseract OCR
+        Tesseract.recognize(canvas, 'eng', {
+            logger: m => {
+                if (m.status === 'recognizing text' && m.progress) {
+                    // Could update progress here
+                }
+            }
+        })
+            .then(result => {
+                hideLoading();
+
+                const detectedText = result.data.text.trim();
+                const cleanedText = cleanText(detectedText);
+
+                if (cleanedText && cleanedText.length > 2) {
+                    playResultReady();
+                    vibrate([100, 80, 100]);
+                    const msg = `Detected text: ${cleanedText}`;
+                    speak(msg);
+                    announcePolite(msg);
+                    showToast(cleanedText, '📖');
+                } else {
+                    playError();
+                    vibrate(200);
+                    const msg = "No readable text found. Try holding the camera closer and keeping it steady.";
+                    speak(msg);
+                    announcePolite(msg);
+                    showToast(msg, '❌');
+                }
+            })
+            .catch(err => {
+                hideLoading();
+                console.error('OCR error:', err);
+                playError();
+                const msg = "Error reading text. Please try again.";
+                speak(msg);
+                announcePolite(msg);
+            });
+    }
+
+    // ---- Image Preprocessing for Better OCR ----
+    function preprocessForOCR(context, width, height) {
+        const imageData = context.getImageData(0, 0, width, height);
+        const data = imageData.data;
+
+        for (let i = 0; i < data.length; i += 4) {
+            // Convert to grayscale
+            const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+
+            // Increase contrast
+            const contrast = 1.5;
+            const adjusted = ((gray - 128) * contrast) + 128;
+            const clamped = Math.max(0, Math.min(255, adjusted));
+
+            // Apply threshold for binarization
+            const binary = clamped > 128 ? 255 : 0;
+
+            data[i] = binary;
+            data[i + 1] = binary;
+            data[i + 2] = binary;
+        }
+
+        context.putImageData(imageData, 0, 0);
+    }
+
+    // ---- Clean Text ----
+    function cleanText(text) {
+        // Remove random symbols but keep common punctuation
+        let cleaned = text.replace(/[^a-zA-Z0-9\s,.!?;:'"()\-\/]/g, '').trim();
+        // Collapse multiple spaces
+        cleaned = cleaned.replace(/\s+/g, ' ');
+        // Must have at least a few real characters
+        return cleaned.length > 2 ? cleaned : '';
+    }
+
+    // ============================================
+    // COLOR DETECTION
+    // ============================================
+    function colorDetection() {
+        if (mode !== 'color-detection') return;
+
+        showLoading();
+        playScanStart();
+        speak("Detecting color.", true);
+        vibrate(100);
+
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        // Sample center region for more accurate results
+        const centerX = Math.floor(canvas.width * 0.3);
+        const centerY = Math.floor(canvas.height * 0.3);
+        const sampleW = Math.floor(canvas.width * 0.4);
+        const sampleH = Math.floor(canvas.height * 0.4);
+        const imageData = context.getImageData(centerX, centerY, sampleW, sampleH);
+
+        const colorName = detectDominantColor(imageData.data);
+
+        hideLoading();
+        playResultReady();
+        vibrate([100, 80, 100]);
+        const msg = `The dominant color is ${colorName}.`;
+        speak(msg);
+        announcePolite(msg);
+        showToast(msg, '🎨');
+    }
+
+    // ---- Dominant Color ----
+    function detectDominantColor(data) {
+        let r = 0, g = 0, b = 0;
+        const pixelCount = data.length / 4;
+        for (let i = 0; i < data.length; i += 4) {
+            r += data[i];
+            g += data[i + 1];
+            b += data[i + 2];
+        }
+        r = Math.floor(r / pixelCount);
+        g = Math.floor(g / pixelCount);
+        b = Math.floor(b / pixelCount);
+        return rgbToColorName(r, g, b);
+    }
+
+    // ---- RGB to HSL ----
+    function rgbToHsl(r, g, b) {
+        r /= 255; g /= 255; b /= 255;
+        const max = Math.max(r, g, b), min = Math.min(r, g, b);
+        let h, s, l = (max + min) / 2;
+
+        if (max === min) {
+            h = s = 0;
         } else {
-            choice.style.opacity = 0.3;  // Fade out the non-selected choices
-            choice.style.pointerEvents = 'auto';
+            const d = max - min;
+            s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+            switch (max) {
+                case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+                case g: h = (b - r) / d + 2; break;
+                case b: h = (r - g) / d + 4; break;
+            }
+            h /= 6;
+        }
+        return [Math.round(h * 360), Math.round(s * 100), Math.round(l * 100)];
+    }
+
+    // ---- Descriptive Color Names ----
+    function rgbToColorName(r, g, b) {
+        const [h, s, l] = rgbToHsl(r, g, b);
+
+        // Achromatic
+        if (s < 10) {
+            if (l > 92) return 'White';
+            if (l > 75) return 'Light Gray';
+            if (l > 55) return 'Gray';
+            if (l > 30) return 'Dark Gray';
+            if (l > 12) return 'Very Dark Gray';
+            return 'Black';
+        }
+
+        // Low saturation grays
+        if (s < 20 && l > 80) return 'Off-White';
+        if (s < 25 && l < 20) return 'Near Black';
+        if (s < 20 && l >= 20 && l <= 80) return 'Grayish';
+
+        // Lightness modifier
+        let lightMod = '';
+        if (l > 75) lightMod = 'Light ';
+        else if (l > 60) lightMod = 'Soft ';
+        else if (l < 25) lightMod = 'Dark ';
+        else if (l < 35) lightMod = 'Deep ';
+
+        // Hue-based color
+        let color;
+        if (h < 10 || h >= 345) color = 'Red';
+        else if (h < 25) color = 'Red-Orange';
+        else if (h < 40) color = 'Orange';
+        else if (h < 50) color = 'Amber';
+        else if (h < 65) color = 'Yellow';
+        else if (h < 80) color = 'Yellow-Green';
+        else if (h < 160) color = 'Green';
+        else if (h < 180) color = 'Teal';
+        else if (h < 200) color = 'Cyan';
+        else if (h < 240) color = 'Blue';
+        else if (h < 260) color = 'Indigo';
+        else if (h < 280) color = 'Violet';
+        else if (h < 310) color = 'Purple';
+        else if (h < 330) color = 'Magenta';
+        else color = 'Pink';
+
+        // Saturation modifier
+        if (s < 40 && lightMod === '') lightMod = 'Muted ';
+
+        return `${lightMod}${color}`.trim();
+    }
+
+    // ============================================
+    // TAP / CLICK HANDLER
+    // ============================================
+    document.body.addEventListener('click', function (event) {
+        if (isMenuOpen) return;
+        if (event.target.closest('.popup-menu-wrapper')) return;
+        if (event.target.closest('.choices-wrapper')) return;
+        if (event.target.closest('.result-toast')) return;
+        if (event.target.closest('.head .logo')) return;
+
+        event.stopPropagation();
+
+        const currentTime = Date.now();
+        const tapDuration = currentTime - lastTapTime;
+
+        if (tapDuration < CONFIG.DOUBLE_TAP_TIMEOUT && tapDuration > 0) {
+            // Double-tap: toggle camera
+            toggleCamera();
+        } else {
+            // Single tap: trigger action
+            if (!isActionTriggered) {
+                isActionTriggered = true;
+                triggerAction();
+                setTimeout(() => { isActionTriggered = false; }, CONFIG.ACTION_COOLDOWN);
+            }
+        }
+
+        lastTapTime = currentTime;
+    });
+
+    function triggerAction() {
+        stopSpeech();
+        hideToast();
+
+        if (mode === 'object-detection') {
+            objectDetection();
+        } else if (mode === 'text-reader') {
+            textReader();
+        } else if (mode === 'color-detection') {
+            colorDetection();
+        }
+    }
+
+    // ============================================
+    // LONG PRESS — Hear Mode Description
+    // ============================================
+    document.body.addEventListener('pointerdown', function (event) {
+        if (event.target.closest('.popup-menu-wrapper')) return;
+        if (event.target.closest('.choices-wrapper')) return;
+
+        longPressTimer = setTimeout(() => {
+            const info = MODE_INFO[mode];
+            if (info) {
+                vibrate([50, 30, 50]);
+                speak(`${info.name}. ${info.description}`);
+                announceAssertive(`${info.name}. ${info.description}`);
+            }
+        }, CONFIG.LONG_PRESS_DURATION);
+    });
+
+    document.body.addEventListener('pointerup', function () {
+        clearTimeout(longPressTimer);
+    });
+
+    document.body.addEventListener('pointercancel', function () {
+        clearTimeout(longPressTimer);
+    });
+
+    // ============================================
+    // SWIPE GESTURE HANDLER
+    // ============================================
+    document.addEventListener('touchstart', function (event) {
+        touchstartX = event.changedTouches[0].screenX;
+    }, { passive: true });
+
+    document.addEventListener('touchend', function (event) {
+        touchendX = event.changedTouches[0].screenX;
+        if (Math.abs(touchendX - touchstartX) > CONFIG.MIN_SWIPE_DISTANCE) {
+            handleSwipe();
+        }
+    }, { passive: true });
+
+    function handleSwipe() {
+        if (isMenuOpen) return;
+
+        if (touchendX < touchstartX) {
+            // Swipe left → next
+            currentIndex = (currentIndex + 1) % choices.length;
+        } else {
+            // Swipe right → previous
+            currentIndex = (currentIndex - 1 + choices.length) % choices.length;
+        }
+
+        switchToMode(currentIndex);
+    }
+
+    // ============================================
+    // MODE SWITCHING
+    // ============================================
+    const MODE_MAP = ['object-detection', 'text-reader', 'color-detection'];
+
+    function switchToMode(index) {
+        currentIndex = index;
+        mode = MODE_MAP[index];
+
+        updateChoiceUI(index);
+        updatePopupMenu();
+        updateStatusBadge();
+        updateAriaStates();
+
+        stopSpeech();
+        playModeSwitch();
+        vibrate(50);
+
+        const info = MODE_INFO[mode];
+        speak(`${info.name} mode`);
+        announceAssertive(`${info.name} mode selected`);
+    }
+
+    function updateChoiceUI(index) {
+        choices.forEach((choice, i) => {
+            choice.classList.remove('left', 'right', 'selected');
+
+            if (i === index) {
+                choice.classList.add('selected');
+                choice.style.opacity = '1';
+                choice.style.pointerEvents = 'auto';
+            } else if (i < index) {
+                choice.classList.add('left');
+                choice.style.opacity = '0.35';
+                choice.style.pointerEvents = 'auto';
+            } else {
+                choice.classList.add('right');
+                choice.style.opacity = '0.35';
+                choice.style.pointerEvents = 'auto';
+            }
+        });
+    }
+
+    function updateStatusBadge() {
+        if (statusText) {
+            statusText.textContent = MODE_INFO[mode].name;
+        }
+    }
+
+    function updateAriaStates() {
+        choices.forEach((choice, i) => {
+            choice.setAttribute('aria-selected', i === currentIndex ? 'true' : 'false');
+            const label = `${MODE_INFO[MODE_MAP[i]].name} mode${i === currentIndex ? ' — currently selected' : ''}`;
+            choice.setAttribute('aria-label', label);
+        });
+    }
+
+    // ---- Choice Click Handlers ----
+    choices.forEach((choice, index) => {
+        choice.addEventListener('click', function (event) {
+            event.stopPropagation();
+            switchToMode(index);
+        });
+    });
+
+    // ============================================
+    // POPUP MENU
+    // ============================================
+    menuBtn.addEventListener('click', function (event) {
+        event.stopPropagation();
+        const isHidden = popupMenu.classList.contains('hidden');
+        popupMenu.classList.toggle('hidden');
+        isMenuOpen = !popupMenu.classList.contains('hidden');
+        menuBtn.setAttribute('aria-expanded', isMenuOpen ? 'true' : 'false');
+
+        if (isMenuOpen) {
+            speak("Menu opened. Choose a detection mode.");
+            vibrate(30);
+            // Focus first menu item
+            const firstItem = popupMenu.querySelector('[role="menuitem"]');
+            if (firstItem) firstItem.focus();
+        } else {
+            speak("Menu closed.");
         }
     });
-}
 
-// Reset the visibility of all choices
-function resetChoiceVisibility() {
-    choices.forEach(choice => {
-        choice.style.opacity = 1;  // Reset opacity for all choices
-        choice.style.pointerEvents = 'auto';  // Enable interaction
+    // Close menu on outside click
+    document.addEventListener('click', function (event) {
+        if (popupMenu && !popupMenu.contains(event.target) && !event.target.matches('#menu-btn') && !event.target.closest('#menu-btn')) {
+            popupMenu.classList.add('hidden');
+            isMenuOpen = false;
+            menuBtn.setAttribute('aria-expanded', 'false');
+        }
     });
-}
 
+    // Popup choice handlers
+    document.querySelectorAll('.popup-choice').forEach((choice, index) => {
+        choice.addEventListener('click', function (event) {
+            event.stopPropagation();
+            switchToMode(index);
+            popupMenu.classList.add('hidden');
+            isMenuOpen = false;
+            menuBtn.setAttribute('aria-expanded', 'false');
+        });
 
-// Initial setup to center the first choice
-updateSelection(currentIndex);
-
-
-// Reset the formatting of all choices
-function resetChoicesFormatting() {
-    choices.forEach((choice) => {
-        choice.style.opacity = 1;  // Reset opacity
-        choice.style.pointerEvents = 'auto';  // Enable interaction
+        // Keyboard support for menu items
+        choice.addEventListener('keydown', function (event) {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                choice.click();
+            } else if (event.key === 'ArrowDown') {
+                event.preventDefault();
+                const next = choice.nextElementSibling;
+                if (next && next.classList.contains('popup-choice')) next.focus();
+            } else if (event.key === 'ArrowUp') {
+                event.preventDefault();
+                const prev = choice.previousElementSibling;
+                if (prev && prev.classList.contains('popup-choice')) prev.focus();
+            } else if (event.key === 'Escape') {
+                popupMenu.classList.add('hidden');
+                isMenuOpen = false;
+                menuBtn.setAttribute('aria-expanded', 'false');
+                menuBtn.focus();
+                speak("Menu closed.");
+            }
+        });
     });
-}
 
-// Start the app with the camera and choices initialized
-startCamera('environment');
+    function updatePopupMenu() {
+        document.querySelectorAll('.popup-choice').forEach(choice => {
+            choice.classList.remove('active');
+        });
+
+        const activeId = {
+            'object-detection': 'popup-object-detection',
+            'text-reader': 'popup-text-reader',
+            'color-detection': 'popup-color-detection'
+        }[mode];
+
+        const activeEl = document.getElementById(activeId);
+        if (activeEl) activeEl.classList.add('active');
+    }
+
+    // ============================================
+    // KEYBOARD NAVIGATION
+    // ============================================
+    document.addEventListener('keydown', function (event) {
+        if (isMenuOpen) return;
+
+        switch (event.key) {
+            case 'ArrowLeft':
+                event.preventDefault();
+                currentIndex = (currentIndex - 1 + choices.length) % choices.length;
+                switchToMode(currentIndex);
+                break;
+            case 'ArrowRight':
+                event.preventDefault();
+                currentIndex = (currentIndex + 1) % choices.length;
+                switchToMode(currentIndex);
+                break;
+            case 'Enter':
+            case ' ':
+                if (document.activeElement === document.body || document.activeElement.closest('.camera')) {
+                    event.preventDefault();
+                    if (!isActionTriggered) {
+                        isActionTriggered = true;
+                        triggerAction();
+                        setTimeout(() => { isActionTriggered = false; }, CONFIG.ACTION_COOLDOWN);
+                    }
+                }
+                break;
+            case 'Escape':
+                stopSpeech();
+                hideToast();
+                speak("Speech stopped.");
+                break;
+        }
+    });
+
+    // ============================================
+    // INITIALIZATION
+    // ============================================
+    function init() {
+        // Set initial UI
+        updateChoiceUI(0);
+        updatePopupMenu();
+        updateStatusBadge();
+        updateAriaStates();
+
+        // Start camera
+        startCamera('environment');
+
+        // Welcome announcement (delayed to let page load)
+        setTimeout(function () {
+            speak("Object detection mode. Tap the screen to analyze what the camera sees. Swipe left or right to switch modes. Double-tap to flip the camera.");
+            announceAssertive("Object detection mode ready. Tap to scan.");
+        }, 1200);
+    }
+
+    // Run on DOM ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+
+})();

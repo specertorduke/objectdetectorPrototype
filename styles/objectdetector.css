@@ -1,141 +1,420 @@
+/* ============================================
+   INSIGHTFUL — Object Detector Page
+   Premium white theme + glassmorphism + accessibility
+   ============================================ */
+
+/* ---- Main Wrapper ---- */
 .objectdetector-wrapper {
     display: flex;
     flex-direction: column;
-    justify-content: space-between;  /* Distribute space between camera and choices */
-    height: 100%;  /* Full viewport height */
+    justify-content: space-between;
+    height: 100dvh;
     width: 100%;
-    box-sizing: border-box;  /* Include padding and border in the element's total width and height */
+    padding: var(--space-md);
+    gap: var(--space-md);
+    background: linear-gradient(180deg, #f7f7fa 0%, #ffffff 100%);
 }
 
-/* head */
+/* ---- Header ---- */
 .objectdetector-wrapper > .head {
     display: flex;
     flex-direction: row;
-    justify-content:space-between;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
 }
+
 .objectdetector-wrapper > .head > .logo {
-    width: 200px; 
-    padding: 20px;
-    box-sizing: border-box;
+    width: 140px;
+    padding: var(--space-sm);
 }
 
 .objectdetector-wrapper > .head > .logo img {
-    width: 100%; 
+    width: 100%;
+    filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.06));
 }
 
-/*  pop-up menu */
+/* ---- Status Badge ---- */
+.status-badge {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    background: var(--bg-glass);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    padding: var(--space-xs) var(--space-md);
+    border-radius: var(--radius-full);
+    border: 1px solid var(--border-subtle);
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    box-shadow: var(--shadow-sm);
+}
+
+.status-badge .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent-cyan);
+    animation: statusPulse 2s ease-in-out infinite;
+}
+
+@keyframes statusPulse {
+    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(0, 153, 204, 0.4); }
+    50% { opacity: 0.6; box-shadow: 0 0 0 6px rgba(0, 153, 204, 0); }
+}
+
+/* ---- Menu Button ---- */
+.popup-menu-wrapper {
+    position: relative;
+}
+
+.menu-button {
+    width: var(--touch-min);
+    height: var(--touch-min);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    background: #ffffff;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    transition: all var(--duration-normal) var(--ease-out);
+    box-shadow: var(--shadow-sm);
+}
+
+.menu-button:hover,
+.menu-button:focus-visible {
+    background: var(--bg-secondary);
+    border-color: var(--border-accent);
+    box-shadow: var(--shadow-glow-cyan);
+}
+
+/* ---- Popup Menu ---- */
 .popup-menu {
     position: absolute;
-    top: 100px;
-    right: 20px;
-    background-color: #ffffff;
-    border-radius: 10px;
-    box-shadow: 0px 4px 20px rgba(0, 0, 0, 0.2);
-    padding: 20px;
-    width: 300px;  /* Larger width */
-    z-index: 10;
-    font-size: 1.25em;  /* Increased font size for readability */
+    top: calc(100% + var(--space-sm));
+    right: 0;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-subtle);
+    box-shadow: var(--shadow-lg);
+    padding: var(--space-md);
+    width: 280px;
+    z-index: 100;
+    transform-origin: top right;
+    animation: menuSlideIn var(--duration-normal) var(--ease-spring);
+}
+
+@keyframes menuSlideIn {
+    from {
+        opacity: 0;
+        transform: scale(0.9) translateY(-8px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+.popup-menu.hidden {
+    display: none;
 }
 
 .popup-choice {
-    padding: 15px;
-    margin: 10px 0;
+    padding: var(--space-md);
+    margin: var(--space-xs) 0;
     cursor: pointer;
-    transition: background-color 0.3s;
+    border-radius: var(--radius-md);
+    transition: all var(--duration-fast) var(--ease-out);
+    border: 1px solid transparent;
+    min-height: var(--touch-min);
+}
+
+.popup-choice strong {
+    display: block;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 2px;
 }
 
 .popup-choice p {
-    margin: 5px 0;
-    font-size: 0.9em;  /* Slightly smaller description font */
+    margin: 0;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    line-height: 1.4;
 }
 
-.popup-choice:hover {
-    background-color: #f0f0f0;
+.popup-choice:hover,
+.popup-choice:focus-visible {
+    background: var(--bg-secondary);
+    border-color: var(--border-subtle);
 }
 
-/* Highlighting the current mode in red */
+/* Active mode highlight */
 .popup-choice.active {
-    color: red;
+    background: rgba(0, 153, 204, 0.06);
+    border-color: var(--border-accent);
 }
 
-/* Large pop-up menu button */
-.menu-button {
-    font-size: 3em;  /* Increased size */
+.popup-choice.active strong {
+    background: var(--accent-gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
 }
 
-.hidden {
-    display: none;  /* Ensure the menu is hidden by default */
-}
-
-
-/* camera */
+/* ---- Camera Viewport ---- */
 .objectdetector-wrapper > .camera {
     display: flex;
     justify-content: center;
     align-items: center;
-    height: 500px;  
-    width: 100%;  
-    background-color: rgb(255, 255, 255);
-    border: 10px solid rgb(217, 217, 217);
-    border-radius: 20px;
-    box-sizing: border-box;
+    flex: 1;
+    min-height: 200px;
+    width: 100%;
+    background: var(--bg-secondary);
+    border-radius: var(--radius-lg);
+    position: relative;
+    overflow: hidden;
+}
+
+/* Subtle gradient border glow */
+.objectdetector-wrapper > .camera::before {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: calc(var(--radius-lg) + 2px);
+    background: linear-gradient(
+        135deg,
+        rgba(0, 153, 204, 0.2),
+        rgba(124, 77, 255, 0.12),
+        rgba(0, 153, 204, 0.08)
+    );
+    z-index: 0;
+    animation: borderGlow 4s ease-in-out infinite alternate;
+}
+
+@keyframes borderGlow {
+    0% { opacity: 0.4; }
+    100% { opacity: 0.8; }
+}
+
+/* Inner white background to mask the gradient border */
+.objectdetector-wrapper > .camera::after {
+    content: '';
+    position: absolute;
+    inset: 2px;
+    border-radius: calc(var(--radius-lg) - 2px);
+    background: var(--bg-secondary);
+    z-index: 0;
 }
 
 .objectdetector-wrapper > .camera video {
-    width: 100%; 
-    height: 100%;
-    border-radius: 10px;
-    box-sizing: border-box;
-}
-
-/* Choices wrapper */
-.choices-wrapper {
-    position: relative; /* Keep choices within this container */
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 150px;  /* Adjust height to fit the choices without taking up the whole page */
     width: 100%;
-    background-color: #ffffff;
-    box-sizing: border-box;
-    margin-top: 10px; /* Add a bit of margin above the choices */
-    overflow: hidden;  /* Hide any content that extends outside the wrapper */
-}
-
-/* Each choice item */
-.choice {
-    position: absolute;  /* Allow choices to overlap */
-    left: 50%;  /* Start from the middle of the container */
-    transform: translateX(-50%) scale(0.8);  /* Keep non-selected choices smaller */
-    text-align: center;
-    padding: 20px;
-    transition: transform 0.3s, opacity 0.3s;
-    font-size: 1.5em;
-    cursor: pointer;
-    background-color: white;
-    border-radius: 10px;
-    box-shadow: 0px 4px 20px rgba(0, 0, 0, 0.2);  /* Add shadow */
-    opacity: 0.4;  /* Non-selected choices are dimmed */
+    height: 100%;
+    border-radius: calc(var(--radius-lg) - 2px);
+    object-fit: cover;
+    position: relative;
     z-index: 1;
 }
 
-/* The selected choice */
-.choice.selected {
-    transform: translateX(-50%) scale(1.2);  /* Enlarge the selected choice */
+/* Scanning line animation overlay */
+.camera-scanning {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--accent-gradient);
+    z-index: 2;
+    opacity: 0;
+    transition: opacity var(--duration-fast);
+    box-shadow: 0 0 15px rgba(0, 153, 204, 0.4);
+}
+
+.camera-scanning.active {
     opacity: 1;
-    font-weight: bold;
-    z-index: 2;  /* Bring the selected choice to the front */
-    box-shadow: 0px 4px 20px rgba(0, 0, 0, 0.2);  /* Add shadow */
+    animation: scanLine 1.5s ease-in-out infinite;
 }
 
-/* Adjust slightly left choices */
+@keyframes scanLine {
+    0% { top: 0; }
+    50% { top: calc(100% - 3px); }
+    100% { top: 0; }
+}
+
+/* ---- Mode Selector ---- */
+.choices-wrapper {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 110px;
+    width: 100%;
+    flex-shrink: 0;
+    overflow: visible;
+    padding: var(--space-sm) 0;
+}
+
+/* Each choice pill */
+.choice {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%) scale(0.8);
+    text-align: center;
+    padding: var(--space-md) var(--space-lg);
+    transition:
+        transform var(--duration-normal) var(--ease-spring),
+        opacity var(--duration-normal) var(--ease-out),
+        box-shadow var(--duration-normal) var(--ease-out),
+        border-color var(--duration-normal) var(--ease-out);
+    font-size: 0.9rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    background: #ffffff;
+    border-radius: var(--radius-full);
+    border: 1px solid var(--border-subtle);
+    box-shadow: var(--shadow-sm);
+    opacity: 0.4;
+    z-index: 1;
+    white-space: nowrap;
+    min-height: var(--touch-min);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+    -webkit-user-select: none;
+    color: var(--text-primary);
+}
+
+/* Selected state */
+.choice.selected {
+    transform: translateX(-50%) scale(1.1);
+    opacity: 1;
+    font-weight: 700;
+    z-index: 2;
+    background: #ffffff;
+    border-color: var(--border-accent);
+    box-shadow: var(--shadow-glow-cyan), var(--shadow-md);
+    color: var(--text-primary);
+}
+
+/* Left position */
 .choice.left {
-    transform: translateX(-120%) scale(0.8);  /* Move left choices */
-    opacity: 0.5;
+    transform: translateX(-140%) scale(0.78);
+    opacity: 0.35;
 }
 
-/* Adjust slightly right choices */
+/* Right position */
 .choice.right {
-    transform: translateX(20%) scale(0.8);  /* Move right choices */
-    opacity: 0.5;
+    transform: translateX(40%) scale(0.78);
+    opacity: 0.35;
+}
+
+/* ---- Swipe Hint ---- */
+.swipe-hint {
+    position: absolute;
+    bottom: 4px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    color: var(--text-muted);
+    font-size: 0.7rem;
+    letter-spacing: 0.04em;
+    opacity: 0;
+    animation: fadeInUp 0.8s ease 2s both;
+}
+
+@keyframes fadeInUp {
+    from { opacity: 0; transform: translateX(-50%) translateY(6px); }
+    to { opacity: 0.6; transform: translateX(-50%) translateY(0); }
+}
+
+.swipe-hint i {
+    font-size: 0.65rem;
+}
+
+/* ---- Result Toast ---- */
+.result-toast {
+    position: fixed;
+    bottom: 140px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: rgba(255, 255, 255, 0.96);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--border-accent);
+    border-radius: var(--radius-lg);
+    padding: var(--space-md) var(--space-lg);
+    color: var(--text-primary);
+    font-size: 0.95rem;
+    font-weight: 500;
+    box-shadow: var(--shadow-glow-cyan), var(--shadow-lg);
+    z-index: 50;
+    opacity: 0;
+    pointer-events: none;
+    transition: all var(--duration-normal) var(--ease-spring);
+    max-width: calc(100vw - 40px);
+    text-align: center;
+    line-height: 1.5;
+}
+
+.result-toast.visible {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+    pointer-events: auto;
+}
+
+.result-toast .toast-icon {
+    margin-right: var(--space-sm);
+}
+
+/* ---- Loading Spinner ---- */
+.loading-indicator {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 3;
+    display: none;
+}
+
+.loading-indicator.active {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-md);
+}
+
+.loading-spinner {
+    width: 48px;
+    height: 48px;
+    border: 3px solid transparent;
+    border-top-color: var(--accent-cyan);
+    border-right-color: var(--accent-purple);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.loading-text {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    background: rgba(255, 255, 255, 0.85);
+    padding: 4px 12px;
+    border-radius: var(--radius-full);
 }
