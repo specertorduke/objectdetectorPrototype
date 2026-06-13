@@ -234,6 +234,21 @@
     z-index: 1;
 }
 
+/* Demo image overlay for portfolio screenshots */
+.demo-image {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    right: 2px;
+    bottom: 2px;
+    width: calc(100% - 4px);
+    height: calc(100% - 4px);
+    object-fit: cover;
+    border-radius: calc(var(--radius-lg) - 2px);
+    z-index: 1;
+    transition: opacity 0.4s ease;
+}
+
 /* Scanning line animation overlay */
 .camera-scanning {
     position: absolute;

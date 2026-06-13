@@ -614,6 +614,32 @@
     }
 
     // ============================================
+    // DEMO MODE — Stock images for screenshots
+    // ============================================
+    const DEMO_IMAGES = {
+        'object-detection': 'images/demo-objects.png',
+        'text-reader': 'images/demo-text.png',
+        'color-detection': 'images/demo-colors.png'
+    };
+
+    const DEMO_RESULTS = {
+        'object-detection': { text: 'I see a laptop (92%), a cup (87%), a cell phone (84%), and a potted plant (78%).', icon: '🔍' },
+        'text-reader': { text: 'Chapter 4: The Path Forward. The intricate process of exploring unknown territories, whether physical or intellectual, requires not only preparation but also an openness to discovery.', icon: '📖' },
+        'color-detection': { text: 'The dominant color is Red.', icon: '🎨' }
+    };
+
+    function updateDemoImage() {
+        const demoImg = document.getElementById('demo-image');
+        if (demoImg) {
+            demoImg.style.opacity = '0';
+            setTimeout(() => {
+                demoImg.src = DEMO_IMAGES[mode];
+                demoImg.style.opacity = '1';
+            }, 200);
+        }
+    }
+
+    // ============================================
     // MODE SWITCHING
     // ============================================
     const MODE_MAP = ['object-detection', 'text-reader', 'color-detection'];
@@ -626,6 +652,7 @@
         updatePopupMenu();
         updateStatusBadge();
         updateAriaStates();
+        updateDemoImage();
 
         stopSpeech();
         playModeSwitch();
@@ -634,6 +661,13 @@
         const info = MODE_INFO[mode];
         speak(`${info.name} mode`);
         announceAssertive(`${info.name} mode selected`);
+
+        // Show demo result toast after a short delay
+        hideToast();
+        setTimeout(() => {
+            const demo = DEMO_RESULTS[mode];
+            if (demo) showToast(demo.text, demo.icon);
+        }, 600);
     }
 
     function updateChoiceUI(index) {
@@ -820,6 +854,12 @@
             speak("Object detection mode. Tap the screen to analyze what the camera sees. Swipe left or right to switch modes. Double-tap to flip the camera.");
             announceAssertive("Object detection mode ready. Tap to scan.");
         }, 1200);
+
+        // Show demo result toast on load
+        setTimeout(function () {
+            const demo = DEMO_RESULTS[mode];
+            if (demo) showToast(demo.text, demo.icon);
+        }, 1800);
     }
 
     // Run on DOM ready
