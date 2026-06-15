@@ -1,15 +1,19 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Insightful Object Detector — Detect objects, read text, and identify colors using your camera with voice output for accessibility.">
+    <meta name="description"
+        content="Insightful Object Detector — Detect objects, read text, and identify colors using your camera with voice output for accessibility.">
     <meta name="theme-color" content="#0a0a12">
     <title>Insightful — Detector</title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap"
+        rel="stylesheet">
 
     <link rel="stylesheet" href="styles/styles.css">
     <link rel="stylesheet" href="styles/objectdetector.css">
@@ -21,6 +25,7 @@
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <script src="javascript/objectdetector.js" defer></script>
 </head>
+
 <body>
     <!-- Skip link -->
     <a href="#camera-stream" class="skip-link" id="skip-link">Skip to Camera</a>
@@ -47,29 +52,24 @@
 
             <!-- Menu -->
             <nav class="popup-menu-wrapper" aria-label="Mode selection menu">
-                <button id="menu-btn" class="menu-button"
-                        aria-label="Open mode selection menu"
-                        aria-expanded="false"
-                        aria-haspopup="true"
-                        aria-controls="popup-menu">
+                <button id="menu-btn" class="menu-button" aria-label="Open mode selection menu" aria-expanded="false"
+                    aria-haspopup="true" aria-controls="popup-menu">
                     <i class="fa-solid fa-bars" aria-hidden="true"></i>
                 </button>
                 <div id="popup-menu" class="popup-menu hidden" role="menu" aria-label="Detection modes">
-                    <div class="popup-choice active" id="popup-object-detection"
-                         role="menuitem" tabindex="0" data-mode="object"
-                         aria-label="Object Detection — Detect and describe objects in front of the camera">
+                    <div class="popup-choice active" id="popup-object-detection" role="menuitem" tabindex="0"
+                        data-mode="object"
+                        aria-label="Object Detection — Detect and describe objects in front of the camera">
                         <strong><i class="fa-solid fa-eye"></i> Object Detection</strong>
                         <p>Detect and describe objects in front of the camera.</p>
                     </div>
-                    <div class="popup-choice" id="popup-text-reader"
-                         role="menuitem" tabindex="0" data-mode="text"
-                         aria-label="Text Reader — Read text from images captured by the camera">
+                    <div class="popup-choice" id="popup-text-reader" role="menuitem" tabindex="0" data-mode="text"
+                        aria-label="Text Reader — Read text from images captured by the camera">
                         <strong><i class="fa-solid fa-book-open"></i> Text Reader</strong>
                         <p>Read text from images captured by the camera.</p>
                     </div>
-                    <div class="popup-choice" id="popup-color-detection"
-                         role="menuitem" tabindex="0" data-mode="color"
-                         aria-label="Color Detection — Identify the dominant color in the camera's view">
+                    <div class="popup-choice" id="popup-color-detection" role="menuitem" tabindex="0" data-mode="color"
+                        aria-label="Color Detection — Identify the dominant color in the camera's view">
                         <strong><i class="fa-solid fa-palette"></i> Color Detection</strong>
                         <p>Identify the dominant color in the camera's view.</p>
                     </div>
@@ -82,7 +82,7 @@
             <video id="camera-stream" autoplay playsinline aria-label="Camera video stream"></video>
 
             <!-- Demo image overlay (for portfolio screenshots) -->
-            <img id="demo-image" class="demo-image" src="images/demo-objects.png" alt="Demo preview" aria-hidden="true">
+            <!-- <img id="demo-image" class="demo-image" src="images/demo-objects.png" alt="Demo preview" aria-hidden="true"> -->
 
             <!-- Scanning animation overlay -->
             <div class="camera-scanning" id="camera-scanning" aria-hidden="true"></div>
@@ -95,25 +95,20 @@
         </div>
 
         <!-- Mode Selector -->
-        <nav class="choices-wrapper" role="tablist" aria-label="Detection mode selector — swipe left or right to switch modes">
-            <div class="choice selected" id="object-detection" data-mode="object"
-                 role="tab" tabindex="0"
-                 aria-selected="true"
-                 aria-label="Object Detection mode — currently selected">
+        <nav class="choices-wrapper" role="tablist"
+            aria-label="Detection mode selector — swipe left or right to switch modes">
+            <div class="choice selected" id="object-detection" data-mode="object" role="tab" tabindex="0"
+                aria-selected="true" aria-label="Object Detection mode — currently selected">
                 <i class="fa-solid fa-eye" aria-hidden="true"></i>
                 <span>Object Detection</span>
             </div>
-            <div class="choice" id="text-reader" data-mode="text"
-                 role="tab" tabindex="0"
-                 aria-selected="false"
-                 aria-label="Text Reader mode">
+            <div class="choice" id="text-reader" data-mode="text" role="tab" tabindex="0" aria-selected="false"
+                aria-label="Text Reader mode">
                 <i class="fa-solid fa-book-open" aria-hidden="true"></i>
                 <span>Text Reader</span>
             </div>
-            <div class="choice" id="color-detection" data-mode="color"
-                 role="tab" tabindex="0"
-                 aria-selected="false"
-                 aria-label="Color Detection mode">
+            <div class="choice" id="color-detection" data-mode="color" role="tab" tabindex="0" aria-selected="false"
+                aria-label="Color Detection mode">
                 <i class="fa-solid fa-palette" aria-hidden="true"></i>
                 <span>Color Detection</span>
             </div>
@@ -134,4 +129,5 @@
     <!-- Off-screen canvas for OCR -->
     <canvas id="ocr-canvas" style="display:none;" aria-hidden="true"></canvas>
 </body>
+
 </html>
